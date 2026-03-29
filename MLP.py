@@ -1,6 +1,4 @@
-# =============================================
-# MLP VERSION OF YOUR CLASSIFICATION PIPELINE
-# =============================================
+
 
 import os
 import pandas as pd
@@ -134,13 +132,6 @@ for year_train, year_test in year_combinations:
         print("Selected MLP dates:", dates_train[mask_train])
         print("New MLP temporal shape train:", x_train.shape)
 
-        # ==================================================
-        # >>> END OF CHANGE <<<
-        # ==================================================
-
-        # =============================
-        # NORMALISATION (unchanged)
-        # =============================
         x_train = (x_train - np.percentile(x_train, 1)) / (np.percentile(x_train, 99) - np.percentile(x_train, 1))
         x_train = np.clip(x_train, 0, 1)
 
