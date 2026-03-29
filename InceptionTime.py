@@ -246,10 +246,6 @@ def main(argv):
         printMeasures(y_pred, y_test, verbose=True)
 
 
-        # Metrics
-       # if show_plots:
-        #    path = "D:/project4/classification/metrics/level1/"
-         #   plotMetrics(y_test,  y_multi[idx_test], y_pred,path,filename)
 
 
         # np.savez(f'{in_directory1}/newy_pred_to create map_{filename}.npz',
