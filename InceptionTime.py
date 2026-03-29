@@ -11,7 +11,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 ###############################################
-orb = 'S2bands_newclass_chatgpt'
+orb = 'S2bands'
 region1 = 'Z2'
 region2= 'Camargue'
 year_train = 2021
@@ -75,7 +75,7 @@ def printMeasures(y_pred, y_test, verbose=True):
             cm_df.to_excel(writer, sheet_name='Confusion Matrix')
 
         # ====================================================
-        # 🔥 HEATMAP — IDENTICAL STYLE TO YOUR REFERENCE
+        # 🔥 HEATMAP 
         # ====================================================
         cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
 
