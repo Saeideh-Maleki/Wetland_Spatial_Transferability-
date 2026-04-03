@@ -1,5 +1,9 @@
+"""
 
+Author: Saeideh Maleki
+Date: 2024-11-12
 
+"""
 import os
 import pandas as pd
 import sys
@@ -11,20 +15,35 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, f1_score, precision_recall_fscore_support, cohen_kappa_score, confusion_matrix
 
 ###############################################
-orb = 'band_ind'
-region1 = 'champgane'
-region2 = 'Camargue'
-year_train = 2021
-year_test = 2021
+# AUTOMATIC SETTINGS
+###############################################
+site_pairs = [
+    ("Camargue", "champgane"),
+    ("champgane", "Camargue"),
+]
 
-output_dir =f"I:/wetland-classification/Newclassificationolddata/results/MLP_short/train{region1}_test{region2}/{orb}/"
-os.makedirs(output_dir, exist_ok=True)
+year_combinations = [(2021, 2021)]
 
-def printMeasures(y_pred, y_test, class_names):
+dataset_pairs = [
+    ("S2bands", "S2bands"),
+    ("S2indices", "S2indices"),
+    ("band_ind", "band_ind"),
+]
+
+site_paths = {
+    "Camargue":  r"F:/wetland-classification/Camargue/S2/processed_S2_data-abbrhabitat_Camargue_2021_Jan_Dec.npz",
+    "champgane": r"F:/wetland-classification/champgane/S2/processed_S2_data-abbrhabitat_champgane_2021_Jan_Dec.npz",
+
+}
+
+# =============================================
+# METRICS + CONFUSION MATRIX FUNCTION
+# =============================================
+def printMeasures(y_pred, y_test, class_names, output_dir, model_name, orb, region1, year_train, region2, year_test):
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred, average=None)
     kappa = cohen_kappa_score(y_test, y_pred)
-    precision, recall, _, _ = precision_recall_fscore_support(y_test, y_pred)
+    precision, recall, _, _ = precision_recall_fscore_support(y_test, y_pred, zero_division=0)
     cm = confusion_matrix(y_test, y_pred)
 
     cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
@@ -72,97 +91,156 @@ def printMeasures(y_pred, y_test, class_names):
     plt.yticks(fontsize=14, fontweight='bold', rotation=90)
 
     plt.savefig(
-        os.path.join(output_dir,
-        f"full_{model_name}_temporal_orbit{orb}_{region1}{year_train}_{region2}{year_test}_percent.png"),
+        os.path.join(
+            output_dir,
+            f"full_{model_name}_temporal_orbit{orb}_{region1}{year_train}_{region2}{year_test}_percent.png"
+        ),
         dpi=300,
         bbox_inches='tight'
     )
     plt.show()
 
 
-year_combinations = [(2021, 2021)]
+# =============================================
+# MAIN LOOP
+# =============================================
+for region1, region2 in site_pairs:
+    for year_train, year_test in year_combinations:
+        model_name = "MLP"
+        rng_seed = 42
+        np.random.seed(rng_seed)
 
-dataset_pairs = [
-        # ("SAR", "SAR"),  # Pair 
-             ("band_ind", "band_ind"),  # Pair 1
-          # ("S2bands", "S2bands"),  # Pair 1
-          # ("S2indices", "S2indices"),  # Pair 1
-]
+        for train_name, test_name in dataset_pairs:
+            orb = train_name
 
-for year_train, year_test in year_combinations:
-    model_name = "MLP"
-    rng_seed = 42
-    np.random.seed(rng_seed)
+            output_dir = f"I:/wetland-classification/results/MLP/train{region1}_test{region2}/{orb}/"
+            os.makedirs(output_dir, exist_ok=True)
 
-    for train_name, test_name in dataset_pairs:
-        name_out = f'full_{model_name}_temporal_orbit{orb}_{region1}{year_train}_{region2}{year_test}_classes.txt'
-        output_path = f"{output_dir}/{name_out}"
-        sys.stdout = open(output_path, "w")
-        test_data_path = 'F:/wetland-classification/Camargue/S2/processed_S2_data-abbrhabitat_Z1_2021_Jan_Dec2.npz'
-        train_data_path  = 'F:/ecosystem_forest/Wetland_code_Sami/2021/dataset/S2/processed_S2_data-abbrhabitat_Z1_2021_Jan_Dec.npz'
-        dataset1 = np.load(train_data_path, allow_pickle=True)
-        x_train = dataset1[train_name].astype(np.float64)
-        dataset2 = np.load(test_data_path, allow_pickle=True)
-        x_test = dataset2[test_name].astype(np.float64)
+            name_out = f'full_{model_name}_temporal_orbit{orb}_{region1}{year_train}_{region2}{year_test}_classes.txt'
+            output_path = f"{output_dir}/{name_out}"
+            sys.stdout = open(output_path, "w", encoding="utf-8")
 
-        # ==================================================
-        # >>> PERIOD SELECTION BLOCK (ONLY NEW PART)
-        # ==================================================
+            # =============================
+            # LOAD TRAIN DATA
+            # =============================
+            train_data_path = site_paths[region1]
+            test_data_path = site_paths[region2]
 
-        def normalize_dates(dates):
-            dates = np.array(dates)
-            if np.issubdtype(dates.dtype, np.datetime64):
-                return np.array([int(str(d).replace('-', '')[:8]) for d in dates])
-            if dates.dtype.type in [np.str_, np.object_]:
-                return np.array([int(str(d).replace('-', '').replace('/', '')[:8]) for d in dates])
-            return dates.astype(int)
+            dataset1 = np.load(train_data_path, allow_pickle=True)
+            print(dataset1.files)
+            x_train = dataset1[train_name].astype(np.float64)
 
-        dates_train = normalize_dates(dataset1['date'])
-        dates_test  = normalize_dates(dataset2['date'])
+            # =============================
+            # LOAD TEST DATA
+            # =============================
+            dataset2 = np.load(test_data_path, allow_pickle=True)
+            print(dataset2.files)
+            x_test = dataset2[test_name].astype(np.float64)
 
-        START_DATE = 20210331
-        END_DATE   = 20210930
+            print(x_train.shape)
+            print(x_test.shape)
 
-        mask_train = (dates_train >= START_DATE) & (dates_train <= END_DATE)
-        mask_test  = (dates_test  >= START_DATE) & (dates_test  <= END_DATE)
+            # =============================
+            # NORMALISATION
+            # =============================
+            x_train = (x_train - np.percentile(x_train, 1)) / (np.percentile(x_train, 99) - np.percentile(x_train, 1))
+            x_train = np.clip(x_train, 0, 1)
 
-        x_train = x_train[:, mask_train, :]
-        x_test  = x_test[:, mask_test, :]
+            x_test = (x_test - np.percentile(x_test, 1)) / (np.percentile(x_test, 99) - np.percentile(x_test, 1))
+            x_test = np.clip(x_test, 0, 1)
 
-        print("Selected MLP dates:", dates_train[mask_train])
-        print("New MLP temporal shape train:", x_train.shape)
+            x_train_flattened = x_train.reshape(x_train.shape[0], -1)
+            x_test_flattened = x_test.reshape(x_test.shape[0], -1)
 
-        x_train = (x_train - np.percentile(x_train, 1)) / (np.percentile(x_train, 99) - np.percentile(x_train, 1))
-        x_train = np.clip(x_train, 0, 1)
+            print(x_train_flattened.shape)
+            print(x_test_flattened.shape)
 
-        x_test = (x_test - np.percentile(x_test, 1)) / (np.percentile(x_test, 99) - np.percentile(x_test, 1))
-        x_test = np.clip(x_test, 0, 1)
+            # =============================
+            # LABEL ENCODING
+            # =============================
+            y_train_input = np.array([str(v) for v in dataset1['habitat']])
+            y_test_input = np.array([str(v) for v in dataset2['habitat']])
 
-        x_train_flattened = x_train.reshape(x_train.shape[0], -1)
-        x_test_flattened = x_test.reshape(x_test.shape[0], -1)
+            unique_classes_train = np.unique(y_train_input)
+            label_map = {label: idx for idx, label in enumerate(unique_classes_train)}
 
-        y_train_input = np.array([str(v) for v in dataset1['habitat']])
-        y_test_input = np.array([str(v) for v in dataset2['habitat']])
+            y_train = np.array([label_map[label] for label in y_train_input])
 
-        unique_classes_train = np.unique(y_train_input)
-        label_map = {label: idx for idx, label in enumerate(unique_classes_train)}
+            # keep only test samples whose classes exist in train
+            mask = np.isin(y_test_input, unique_classes_train)
+            x_test = x_test[mask]
+            x_test_flattened = x_test.reshape(x_test.shape[0], -1)
+            y_test_input = y_test_input[mask]
 
-        y_train = np.array([label_map[label] for label in y_train_input])
-        y_test = np.array([label_map.get(label, -1) for label in y_test_input])
+            y_test = np.array([label_map[label] for label in y_test_input])
 
-        mlp_model = MLPClassifier(
-            hidden_layer_sizes=(256, 128),
-            activation='relu',
-            solver='adam',
-            max_iter=200,
-            batch_size=256,
-            learning_rate_init=0.001,
-            random_state=rng_seed,
-            verbose=True,
-            early_stopping=True
-        )
+            # =============================
+            # TRAIN MLP MODEL
+            # =============================
+            mlp_model = MLPClassifier(
+                hidden_layer_sizes=(256, 128),
+                activation='relu',
+                solver='adam',
+                max_iter=200,
+                batch_size=256,
+                learning_rate_init=0.001,
+                random_state=rng_seed,
+                verbose=True,
+                early_stopping=True
+            )
 
-        mlp_model.fit(x_train_flattened, y_train)
-        y_pred_test = mlp_model.predict(x_test_flattened)
+            mlp_model.fit(x_train_flattened, y_train)
 
-        printMeasures(y_pred_test, y_test, unique_classes_train)
+            # =============================
+            # PREDICTION
+            # =============================
+            y_pred_test = mlp_model.predict(x_test_flattened)
+
+            # =============================
+            # METRICS
+            # =============================
+            printMeasures(
+                y_pred_test, y_test, unique_classes_train,
+                output_dir, model_name, orb, region1, year_train, region2, year_test
+            )
+
+            # =============================
+            # OUTPUT FOR MAP
+            # =============================
+            idx_to_label = {idx: label for label, idx in label_map.items()}
+
+            df_map = pd.DataFrame({
+                "ID": np.array(dataset2["ID"])[mask] if "ID" in dataset2.files else np.arange(len(y_test)),
+                "LULC_true": [idx_to_label[i] for i in y_test],
+                "LULC_pred": [idx_to_label[i] for i in y_pred_test],
+            })
+
+            if "x" in dataset2.files:
+                df_map["x"] = np.array(dataset2["x"])[mask]
+            if "y" in dataset2.files:
+                df_map["y"] = np.array(dataset2["y"])[mask]
+            if "X" in dataset2.files:
+                df_map["X"] = np.array(dataset2["X"])[mask]
+            if "Y" in dataset2.files:
+                df_map["Y"] = np.array(dataset2["Y"])[mask]
+            if "nomcomplet" in dataset2.files:
+                df_map["nomcomplet"] = np.array(dataset2["nomcomplet"])[mask]
+
+            df_map.to_csv(
+                os.path.join(output_dir, f"map_output_{model_name}_orbit{orb}_{region1}{year_train}_{region2}{year_test}.csv"),
+                index=False,
+                encoding="utf-8"
+            )
+            print("Map output saved.")
+
+            sys.stdout.close()
+            sys.stdout = sys.__stdout__
+
+print("All runs completed.")
+
+
+# In[ ]:
+
+
+
+
